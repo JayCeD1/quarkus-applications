@@ -44,7 +44,9 @@ public class InventoryService {
                             .onItem()
                             .transform(item -> Response.created(URI.create("/items/" + item.id)).status(Status.CREATED)
                                     .entity(inventoryItem)
-                                    .build());
+                                    .build())
+                            .onFailure()
+                            .transform(IllegalStateException::new);
                 })
         );
 //        return itemRepository.validateRequest(request.name, request.barcode)
