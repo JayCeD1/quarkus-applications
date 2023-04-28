@@ -14,6 +14,8 @@ import javax.ws.rs.core.Response.Status;
 import java.net.URI;
 import java.time.Duration;
 
+import static javax.ws.rs.core.Response.Status.BAD_REQUEST;
+
 @ApplicationScoped
 public class InventoryService {
 
@@ -24,33 +26,54 @@ public class InventoryService {
 
     public Uni<Response> createItem(InventoryItemRequest request) {
 
-        return itemRepository.validateRequest(request.name, request.barcode)
+        return Panache.withTransaction(() -> itemRepository.validateRequest(request.name, request.barcode)
                 .onItem()
                 .ifNotNull()
-                .transform(t -> Response.ok()
-                        .status(Status.BAD_REQUEST)
-                        .entity("Item already exists!")
-                        .build())
+                .transform(item -> Response.status(BAD_REQUEST).entity("Item already exists!").build())
                 .onItem()
                 .ifNull()
                 .switchTo(() -> {
+
                     InventoryItem inventoryItem = new InventoryItem();
                     inventoryItem.name = request.name;
                     inventoryItem.type = request.type;
                     inventoryItem.barcode = request.barcode;
                     inventoryItem.isReturnable = request.isReturnable;
 
-                    return Panache.withTransaction(inventoryItem::persist)
-                            .ifNoItem()
-                            .after(Duration.ofMillis(10000))
-                            .fail()
-                            .onFailure()
-                            .transform(IllegalStateException::new)
-                            .replaceWith(Response.created(URI.create("/items/" + inventoryItem.id))
-                                    .status(Status.CREATED)
+                    return itemRepository.persist(inventoryItem)
+                            .onItem()
+                            .transform(item -> Response.created(URI.create("/items/" + item.id)).status(Status.CREATED)
                                     .entity(inventoryItem)
                                     .build());
-                });
+                })
+        );
+//        return itemRepository.validateRequest(request.name, request.barcode)
+//                .onItem()
+//                .ifNotNull()
+//                .transform(t -> Response.ok()
+//                        .status(BAD_REQUEST)
+//                        .entity("Item already exists!")
+//                        .build())
+//                .onItem()
+//                .ifNull()
+//                .switchTo(() -> {
+//                    InventoryItem inventoryItem = new InventoryItem();
+//                    inventoryItem.name = request.name;
+//                    inventoryItem.type = request.type;
+//                    inventoryItem.barcode = request.barcode;
+//                    inventoryItem.isReturnable = request.isReturnable;
+//
+//                    return Panache.withTransaction(inventoryItem::persist)
+//                            .ifNoItem()
+//                            .after(Duration.ofMillis(10000))
+//                            .fail()
+//                            .onFailure()
+//                            .transform(IllegalStateException::new)
+//                            .replaceWith(Response.created(URI.create("/items/" + inventoryItem.id))
+//                                    .status(Status.CREATED)
+//                                    .entity(inventoryItem)
+//                                    .build());
+//                });
     }
 
     public Uni<Response> getItems() {
@@ -77,7 +100,7 @@ public class InventoryService {
                 .onItem()
                 .ifNotNull()
                 .transform(t -> Response.ok()
-                        .status(Status.BAD_REQUEST)
+                        .status(BAD_REQUEST)
                         .entity("Item already exists!")
                         .build())
                 .onItem()
